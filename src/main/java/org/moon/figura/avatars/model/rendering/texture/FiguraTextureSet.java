@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.resources.ResourceLocation;
+import org.moon.figura.avatars.Avatar;
 import org.moon.figura.mixin.render.layers.elytra.ElytraLayerAccessor;
 import org.moon.figura.utils.FiguraIdentifier;
 
@@ -15,7 +16,7 @@ public class FiguraTextureSet {
     public final String name;
     public final FiguraTexture mainTex, emissiveTex;
 
-    public FiguraTextureSet(String name, byte[] mainData, byte[] emissiveData) {
+    public FiguraTextureSet(String name, byte[] mainData, byte[] emissiveData, Avatar avatar) {
         this.name = name;
         mainTex = mainData == null ? null : new FiguraTexture(name, mainData);
         emissiveTex = emissiveData == null ? null : new FiguraTexture(name, emissiveData);

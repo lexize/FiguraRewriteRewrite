@@ -8,8 +8,11 @@ import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaUserdata;
+import org.luaj.vm2.LuaValue;
 import org.lwjgl.BufferUtils;
 import org.moon.figura.FiguraMod;
+import org.moon.figura.avatars.Avatar;
 import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.docs.LuaFunctionOverload;
 import org.moon.figura.lua.docs.LuaMethodDoc;
@@ -24,6 +27,8 @@ import org.moon.figura.utils.LuaUtils;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @LuaWhitelist
@@ -207,5 +212,198 @@ public class FiguraTexture extends AbstractTexture implements Closeable {
     @Override
     public String toString() {
         return name.isBlank() ? "Texture" : name + " (Texture)";
+    }
+
+
+    @LuaWhitelist
+    @LuaMethodDoc("texture.create_context")
+    public TextureEditContext createContext() {
+        return new TextureEditContext(this);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("texture.apply")
+    public void apply(TextureEditContext context) {
+        context.changedPixels.forEach((pos, col)
+                -> texture.setPixelRGBA(pos.x, pos.y, ColorUtils
+                .rgbaToIntABGR(parseColor("setPixel", col.x,col.y,col.z,col.w))));
+        dirty();
+        registerAndUpload();
+    }
+
+    @LuaWhitelist
+    @LuaTypeDoc(
+            name = "TextureEditContext",
+            value = "texture_edit_context"
+    )
+    public static class TextureEditContext{
+        private final FiguraTexture textureToEdit;
+        private final Map<PixelPos, FiguraVec4> changedPixels = new HashMap<>();
+        public record PixelPos(int x, int y){}
+        public TextureEditContext(FiguraTexture textureToEdit) {
+            this.textureToEdit = textureToEdit;
+        }
+
+        @LuaWhitelist
+        @LuaMethodDoc("texture_edit_context.get_pixel_at")
+        public FiguraVec4 getPixelAt(int x, int y, Boolean unchanged) {
+            if (unchanged == null) unchanged = true;
+            PixelPos pixelPos = new PixelPos(x,y);
+            FiguraVec4 data = changedPixels.get(pixelPos);
+            if (data != null && !unchanged) return data;
+            else return textureToEdit.getPixel(x,y);
+        }
+
+        @LuaWhitelist
+        @LuaMethodDoc("texture_edit_context.set_pixel_at")
+        public void setPixelAt(int x, int y, FiguraVec4 color) {
+            changedPixels.put(new PixelPos(x,y), color);
+        }
+
+        @LuaWhitelist
+        @LuaMethodDoc("texture_edit_context.cancel_change_at")
+        public void cancelChangeAt(int x, int y) {
+            PixelPos pos = new PixelPos(x,y);
+            changedPixels.remove(pos);
+        }
+
+        @LuaWhitelist
+        @LuaMethodDoc(value = "texture_edit_context.cancel_changes_in", overloads = {
+                @LuaFunctionOverload(
+                        argumentTypes = {
+                            Integer.class,Integer.class,Integer.class,Integer.class
+                        },
+                        argumentNames = {"x1","y1","x2","y2"}
+                ),
+                @LuaFunctionOverload(
+                        argumentTypes = {FiguraVec4.class},
+                        argumentNames = {"rect"}
+                )
+        })
+        public void cancelChangesIn(Object x1, int y1, int x2, int y2) {
+            int uX, uY, dX, dY;
+            if (x1 instanceof FiguraVec4 vec4) {
+                uX = Math.max((int) vec4.x, (int) vec4.z);
+                uY = Math.max((int) vec4.y, (int) vec4.w);
+                dX = Math.min((int) vec4.x, (int) vec4.z);
+                dY = Math.min((int) vec4.y, (int) vec4.w);
+            }
+            else {
+                try {
+                    uX = Math.max((int)x1,x2);
+                    uY = Math.max(y1,y2);
+                    dX = Math.min((int)x1,x2);
+                    dY = Math.min(y1,y2);
+                } catch (ClassCastException e) {
+                    throw new LuaError("First argument need to be FiguraVec4 or int");
+                }
+            }
+
+            changedPixels.forEach((pos, pix) -> {
+                if (pos.x >= dX && pos.x <= uX
+                        && pos.y >= dY && pos.y <= uY)
+                {
+                    changedPixels.remove(pos);
+                }
+            });
+        }
+
+        @LuaWhitelist
+        @LuaMethodDoc(value = "texture_edit_context.fill_rect", overloads = {
+                @LuaFunctionOverload(
+                        argumentTypes = {
+                                FiguraVec4.class,Integer.class,Integer.class,Integer.class,Integer.class
+                        },
+                        argumentNames = {"color","x1","y1","x2","y2"}
+                ),
+                @LuaFunctionOverload(
+                        argumentTypes = {FiguraVec4.class,FiguraVec4.class},
+                        argumentNames = {"color","rect"}
+                )
+        })
+        public void fillRect(FiguraVec4 color, Object x1, int y1, int x2, int y2) {
+            int uX, uY, dX, dY;
+            if (x1 instanceof FiguraVec4 vec4) {
+                uX = Math.max((int) vec4.x, (int) vec4.z);
+                uY = Math.max((int) vec4.y, (int) vec4.w);
+                dX = Math.min((int) vec4.x, (int) vec4.z);
+                dY = Math.min((int) vec4.y, (int) vec4.w);
+            }
+            else {
+                try {
+                    uX = Math.max((int)x1,x2);
+                    uY = Math.max(y1,y2);
+                    dX = Math.min((int)x1,x2);
+                    dY = Math.min(y1,y2);
+                } catch (ClassCastException e) {
+                    throw new LuaError("First argument need to be FiguraVec4 or int");
+                }
+            }
+
+            for (int x = dX; x <= uX; x++) {
+                for (int y = dY; y <= uY; y++) {
+                    setPixelAt(x,y,color);
+                }
+            }
+        }
+
+        @LuaWhitelist
+        @LuaMethodDoc(value = "texture_edit_context.fill_ellipse", overloads = {
+                @LuaFunctionOverload(
+                        argumentTypes = {
+                                FiguraVec4.class,Integer.class,Integer.class,Integer.class,Integer.class
+                        },
+                        argumentNames = {"color","x1","y1","x2","y2"}
+                ),
+                @LuaFunctionOverload(
+                        argumentTypes = {FiguraVec4.class,FiguraVec4.class},
+                        argumentNames = {"color","rect"}
+                )
+        })
+        public void fillEllipse(FiguraVec4 color, Object x1, int y1, int x2, int y2) {
+            int uX, uY, dX, dY;
+            if (x1 instanceof FiguraVec4 vec4) {
+                uX = Math.max((int) vec4.x, (int) vec4.z);
+                uY = Math.max((int) vec4.y, (int) vec4.w);
+                dX = Math.min((int) vec4.x, (int) vec4.z);
+                dY = Math.min((int) vec4.y, (int) vec4.w);
+            }
+            else {
+                try {
+                    uX = Math.max((int)x1,x2);
+                    uY = Math.max(y1,y2);
+                    dX = Math.min((int)x1,x2);
+                    dY = Math.min(y1,y2);
+                } catch (ClassCastException e) {
+                    throw new LuaError("First argument need to be FiguraVec4 or int");
+                }
+            }
+
+            float cX = (uX + dX) / 2f;
+            float cY = (uY + dY) / 2f;
+            float rX = (uX - cX);
+            float rY = (uY - cY);
+            float aspectRatio = rY / rX;
+
+            for (int x = dX; x <= uX; x++) {
+                for (int y = dY; y <= uY; y++) {
+                    float distX = (x - cX);
+                    float distY = (y - cY) / aspectRatio;
+
+                    float dist = (float) Math.sqrt(Math.pow(distX, 2.0f) + Math.pow(distY, 2.0f)) ;
+                    if (dist <= Math.ceil(rX)) setPixelAt(x,y,color);
+                }
+            }
+
+        }
+
+        @LuaWhitelist
+        public Object __index(String value) {
+            return switch (value) {
+                case "width" -> textureToEdit.getWidth();
+                case "height" -> textureToEdit.getHeight();
+                default -> null;
+            };
+        }
     }
 }

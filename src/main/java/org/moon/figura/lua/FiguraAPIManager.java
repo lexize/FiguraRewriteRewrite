@@ -117,6 +117,7 @@ public class FiguraAPIManager {
 
         add(TextureAPI.class);
         add(FiguraTexture.class);
+        add(FiguraTexture.TextureEditContext.class);
 
         add(Animation.class);
 

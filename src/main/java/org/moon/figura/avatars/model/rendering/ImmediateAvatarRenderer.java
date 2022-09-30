@@ -52,7 +52,7 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
             byte[] emissiveData = tag.getByteArray("emissive");
             emissiveData = emissiveData.length == 0 ? null : emissiveData;
 
-            textureSets.add(new FiguraTextureSet(name, mainData, emissiveData));
+            textureSets.add(new FiguraTextureSet(name, mainData, emissiveData, avatar));
         }
 
         //Vertex data, read model parts
